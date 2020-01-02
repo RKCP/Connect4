@@ -11,6 +11,7 @@ import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Rectangle;
+import javafx.scene.text.Text;
 import javafx.stage.Stage;
 import javafx.scene.shape.Shape;
 import javafx.util.Duration;
@@ -30,7 +31,9 @@ public class Connect4App extends Application {
     private boolean redMove = true; // Red starts the game. If this is false, then it is Yellow's turn to move.
     private Disc[][] gridOfDiscs = new Disc[COLUMNS][ROWS]; // This grid has Columns width and Rows height.
 
+    private Pane root = new Pane(); // made this a field so all methods can manipulate it. Before I couldn't due to scope.
     private Pane discRoot = new Pane();
+
 
 
     /**
@@ -39,12 +42,12 @@ public class Connect4App extends Application {
      */
     private Parent createContent() {
 
-        Pane root = new Pane(); // Using pane allows us to manipulate the children of this easier.
         root.getChildren().add(discRoot); // placing the add here allows the discs to have a nice overlay on the grid
 
         Shape gameGrid = makeGrid(); // We will create a grid in the makeGrid method and store it in here.
 
         root.getChildren().add(gameGrid); // Add our grid to the root
+
         root.getChildren().addAll(userHoverColumns()); // Add the hover box for the columns to the root
 
         return root;
@@ -77,7 +80,6 @@ public class Connect4App extends Application {
         }
 
 
-
         Light.Distant light  = new Light.Distant(); // creating the light that will shine onto the grid.
         light.setAzimuth(45.0);
         light.setElevation(30.0);
@@ -95,7 +97,7 @@ public class Connect4App extends Application {
     /**
      * Method that allows the user to hover over a column in the grid and see what column they are hovering over.
      */
-    private ArrayList<Rectangle> userHoverColumns() { /* MAKE THIS CHANGE COLOR BASED ON WHICH USER TURN IT IS. FROM RED TO YELLOW */
+    private ArrayList<Rectangle> userHoverColumns() { /* MAKE THIS CHANGE COLOR BASED ON WHICH USER TURN IT IS. FROM RED TO YELLOW */ // difficult because the color setting only happens at the start.
 
         ArrayList<Rectangle> hover = new ArrayList<>();
 
@@ -104,7 +106,7 @@ public class Connect4App extends Application {
             hoverBox.setTranslateX(x * (TILE_SIZE + 20) + TILE_SIZE / 4); //
             hoverBox.setFill(Color.TRANSPARENT); // make the box have no fill to start with. It is invisible if not in use by the user.
 
-            hoverBox.setOnMouseEntered(eventOccurs -> hoverBox.setFill(Color.rgb(255, 0, 0, 0.2))); // lambda function. When the event occurs, set the fill colour to this.
+            hoverBox.setOnMouseEntered(eventOccurs -> hoverBox.setFill(Color.rgb(255, 255, 255, 0.17))); // lambda function. When the event occurs, set the fill colour to this.
             hoverBox.setOnMouseExited(eventOccurs -> hoverBox.setFill(Color.TRANSPARENT)); // when the mouse leaves the given box, leave
 
             final int column = x; // this is the column the user will be hovering over.
@@ -115,7 +117,6 @@ public class Connect4App extends Application {
         }
 
         return hover;
-
     }
 
 
@@ -127,7 +128,6 @@ public class Connect4App extends Application {
     private void dropDisc(Disc disc, int column) {
 
         int row = ROWS -1; // We want to add discs so it falls down, so we need to start count from the maximum value to 0.
-        final int currentRow = row;
 
         do {
             if (!getDisc(column, row).isPresent()) { // Basically if there is already a disc inside the grid place we are looking at, then break out of the Do-While Loop.
@@ -144,13 +144,16 @@ public class Connect4App extends Application {
         discRoot.getChildren().add(disc); // add the disc to the root.
         disc.setTranslateX(column * (TILE_SIZE + 20) + TILE_SIZE / 4);
 
+        final int currentRow = row;
+
         TranslateTransition animation = new TranslateTransition(Duration.seconds(0.5), disc); // animation that controls the disc dropping.
         animation.setToY(row * (TILE_SIZE + 20) + TILE_SIZE / 4); // we want the animation/disc to drop vertically along the Y axis.
         animation.setOnFinished(eventOccurs -> { // when the animation finishes
             if (gameEnd(column, currentRow)) { // if we are at the end of the game when the animation finishes, then run the gameOver method.
                 gameOver();
             }
-            redMove = !redMove;
+
+            redMove = !redMove; // switch to yellow turn.
         });
 
         animation.play(); // runs the animation. Without this it won't work.
@@ -163,19 +166,28 @@ public class Connect4App extends Application {
      */
     public boolean gameEnd(int column, int row) {
 
-        List<Point2D> vertical = IntStream.rangeClosed(row - 3, row + 3) // a Stream is a sequence of elements supporting aggregate operations.
-                .mapToObj(r -> new Point2D(column, r))
-                .collect(Collectors.toList());
+        List<Point2D> vertical = IntStream.rangeClosed(row - 3, row + 3) // a Stream is a sequence of elements supporting aggregate operations. Vertical uses Rows.
+                .mapToObj(r -> new Point2D(column, r)) // mapping the stream of rows to a Point, (X as column, r as row)
+                .collect(Collectors.toList()); // store this as a list, and put it into the list called vertical.
 
 
-        List<Point2D> horizontal = IntStream.rangeClosed(column - 3, column + 3) // a Stream is a sequence of elements supporting aggregate operations.
+        List<Point2D> horizontal = IntStream.rangeClosed(column - 3, column + 3) // a Stream is a sequence of elements supporting aggregate operations. Horizontal uses columns.
                 .mapToObj(c -> new Point2D(c, row))
                 .collect(Collectors.toList());
 
+        Point2D topLeft = new Point2D(column - 3, row - 3); // column - 3 is giving us the left point, row - 3 is giving us the top point.
 
-        // NEED TO ADD DIAGONAL WIN CONS.
+        List<Point2D> diagonal1 = IntStream.rangeClosed(0, 6) // the possible slots in the grid that the discs can drop into.
+                .mapToObj(i -> topLeft.add(i,i)) // 'i' will iterate through 0-6, checking from top left to bottom right for chains.
+                .collect(Collectors.toList());
 
-        return chainLength(vertical) || chainLength(horizontal);
+        Point2D bottomLeft = new Point2D(column - 3, row + 3); // column - 3 is giving us the left point, row - 3 is giving us the top point.
+
+        List<Point2D> diagonal2 = IntStream.rangeClosed(0, 6) // the possible slots in the grid that the discs can drop into.
+                .mapToObj(i -> bottomLeft.add(i,-i)) // 'i' will iterate through 0-6, checking from bottom left to top right for chains.
+                .collect(Collectors.toList());
+
+        return chainLength(vertical) || chainLength(horizontal) || chainLength(diagonal1) || chainLength(diagonal2); // returns true if a chain has occurred on any of these.
     }
 
 
@@ -184,7 +196,7 @@ public class Connect4App extends Application {
      * @param points
      * @return
      */
-    public boolean chainLength(List<Point2D> points) { // Point2D gives a 2D geometric point
+    public boolean chainLength(List<Point2D> points) { // Point2D gives a 2D geometric point. We are passing in a list of x,y coordinates as 'points'.
 
         int chain = 0;
 
@@ -192,15 +204,15 @@ public class Connect4App extends Application {
             int column = (int) point.getX();
             int row = (int) point.getY();
 
-            Disc disc = getDisc(column, row).orElse(new Disc(!redMove)); //get the disc at the Point2D position. orElse gets called if there is no disc at that position, so we supply a new disc.
-            if (disc.red == redMove) { // if it is reds move.
+            Disc disc = getDisc(column, row).orElse(new Disc(!redMove)); //get the disc at the Point2D position (the given x,y). orElse gets called if there is no disc at that position, so we supply a new disc. Using orElse because it returns an Optional.
+            if (disc.red == redMove) { // if it is reds move. Checking if the 'red' boolean in the Disc class is true and equal to redMove. If it is, then the current disc is red. If it is false, and redMove is false, then we know it is Yellows turn.
                 chain++;
                 if (chain == 4) {
                     return true;
                 }
-                else {
-                    chain = 0;
-                }
+            }
+            else { // this must be here rather than an else to the above if statement. Otherwise, it will always reset chain to 0 after incrementing. Chain will never get to reach 4.
+                chain = 0;
             }
         }
 
@@ -212,7 +224,24 @@ public class Connect4App extends Application {
      * Method that ends the game.
      */
     public void gameOver() {
-        System.out.println("PUT A BIG GAME OVER OVERLAY ON THE SCREEN. winner is red or yellow.");
+
+
+        Shape gameOverOverlay = new Rectangle((COLUMNS + 1.7) * TILE_SIZE, (ROWS + 1.7) * TILE_SIZE);
+        gameOverOverlay.setFill(Color.BLACK);
+
+
+
+        Text text = new Text(85,375, "GAME OVER");
+        Text subText = new Text(180, 450, "WINNER:" + (redMove ? "RED PLAYER" : "YEL PLAYER"));
+        text.setStyle("-fx-font-family: 'Press Start 2P', cursive; -fx-font-size: 80;");
+        subText.setStyle("-fx-font-family: 'Press Start 2P', cursive; -fx-font-size: 30;");
+        text.setFill(Color.WHITE);
+        subText.setFill(redMove ? Color.RED : Color.YELLOW);
+
+
+        root.getChildren().add(gameOverOverlay);
+        root.getChildren().add(text);
+        root.getChildren().add(subText);
     }
 
 
@@ -235,6 +264,7 @@ public class Connect4App extends Application {
     @Override
     public void start (Stage stage) throws Exception {
 
+        root.getStylesheets().add("https://fonts.googleapis.com/css?family=Press+Start+2P&display=swap");
         stage.setScene(new Scene(createContent())); // run the createContent method on the stage.
         stage.show();
     }
